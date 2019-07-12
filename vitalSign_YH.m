@@ -8,9 +8,9 @@
 
 %% Path
 addModuleConnectorPath();
-addpath('C:\Users\hushb\Downloads\Compressed\ModuleConnector-win32_win64-1.6.2\matlab/');
-addpath('C:\Users\hushb\Downloads\Compressed\ModuleConnector-win32_win64-1.6.2\include/');
-addpath('C:\Users\hushb\Downloads\Compressed\ModuleConnector-win32_win64-1.6.2\matlab\examples/');
+addpath('../../matlab/');
+addpath('../../include/');
+addpath('./');
 % if running on a 32-bit Windows system, instead run:
 % addModuleConnectorPath('win32');
 
