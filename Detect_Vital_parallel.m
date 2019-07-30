@@ -1,4 +1,4 @@
-function [Selected_Signal, Selected_Index, Freq, Phase, error] = Detect_Vital_parallel(Signal, FPS)
+function [Selected_Signal, Selected_Index, error] = Detect_Vital_parallel(Signal, FPS)
 % Define
 Sample_Index = length(Signal(1,:));
 Sample_Length = length(Signal(:,1));
@@ -33,7 +33,7 @@ for fast_index = 1 : Sample_Length
     % Select Signal in range
     if (coeff(2)*FPS < 2*pi*0.5) && (coeff(2)*FPS > 2*pi*0.15) 
         Rsquare_batch(fast_index) = gof.rsquare;
-        Freq_list(fast_index) = coeff(2)*FPS;
+        Freq_list(fast_index) = coeff(2)/(2*pi);
         Phase_list(fast_index) = coeff(3);
     end
 end
@@ -84,8 +84,6 @@ Selected_Index = filtered_range(best_r_index);
 Selected_Signal = Signal(Selected_Index, :);
 Phase = Phase_list(Selected_Index);
 Freq = Freq_list(Selected_Index)*FPS;
-
-%% Phase Shift to 0
 
 % Check Rsquare threshold
 if r_value < Rsquare_threshold
