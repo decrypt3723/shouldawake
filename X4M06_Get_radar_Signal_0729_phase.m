@@ -18,7 +18,6 @@ clc
 clear
 close all
 
-
 %% Activate parallel pool
 % delete(gcp('nocreate'));
 hPool = gcp('nocreate');
@@ -157,6 +156,8 @@ while ishandle(1)
                 Filtered = wdenoise(RawData, 2, 'Wavelet', 'bior2.6', 'DenoisingMethod', 'SURE', 'NoiseEstimate', 'LevelIndependent');
                 Signal(:,slow_index) = Filtered;
                 
+                % Todo : Compensate small body or outside movement
+                
                 % Select max amplitude
                 [max_amp, max_index] = max(abs(Signal(:,slow_index)));
 
@@ -198,6 +199,7 @@ while ishandle(1)
     end
     
     %% Ignore Body Movement
+    % Todo : If detect big body movement, ignore that radar signal
     
     %% Detect Vital Signal
     if slow_index >= Max_sample_length
@@ -207,11 +209,12 @@ while ishandle(1)
         if exist('func_result', 'var')
             fprintf("Calc Delayed.\n");
             wait(func_result);
+        else
+            % Detect vital signal in parallel
+            func_result = parfeval(@Detect_Vital_parallel, 5, Sample, FPS);
+            slow_index = 0;
         end
-        % Detect vital signal in parallel
-        func_result = parfeval(@Detect_Vital_parallel, 5, Sample, FPS);
-        
-        slow_index = 0;
+
     end
     
     %% Show Detected Vital Signal
@@ -223,6 +226,7 @@ while ishandle(1)
         axh(2) = subplot(2,1,2);
         fprintf("%.1f s > ", (index - Min_slow_index)/FPS);
         if isempty(error)
+            % Phase shift
             if isempty(Vital_Signal)
                 Shifted_Signal = normalize(Selected_Signal);
                 Prev_phase = Phase;
@@ -232,6 +236,7 @@ while ishandle(1)
                 Prev_phase = Phase;
                 Prev_freq = Freq;
             end
+            
             Vital_Signal = [Vital_Signal Shifted_Signal];
             
             fprintf("%.3f m Detected\n", Selected_Index * binLength + frameStart);
@@ -270,8 +275,8 @@ else
             
             % Print result
             if isempty(error)
-                fprintf("Sample Length : %d bins / Spent time : %d ms /  Respiration Rate : %f bpm / Heart Rate : ", length(Vital_Signal), length(Vital_Signal)*1000/FPS, RR);
-                fprintf("%f bpm ", HR);
+                fprintf("Sample Length : %d bins / Spent time : %.2f s /  Respiration Rate : %.2f bpm / Heart Rate : ", length(Vital_Signal), length(Vital_Signal)/FPS, RR);
+                fprintf("%.2f bpm ", HR);
                 fprintf("\n");
             else
                 fprintf(error);
