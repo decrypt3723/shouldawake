@@ -2,7 +2,7 @@
 function [Result] = Phase_shift(Next_Signal, Prev_freq, Prev_phase, Next_freq, Next_phase, FPS)
 phase = round(Prev_phase * FPS / Prev_freq - Next_phase * FPS / Next_freq);	% phase parameter * sampling rate / frequency parameter(what we get is angular frequency) = the number of samples  
 avg_freq = (Prev_freq + Next_freq) / 2;
-remainder_sample = mod(phase, round(FPS/avg_freq));
+remainder_sample = rem(phase, round(FPS/avg_freq));% do not use mod() -> mod's result doens't keep sign of dividend.
 	if remainder_sample == 0
 	    Result = Next_Signal;
 	else
