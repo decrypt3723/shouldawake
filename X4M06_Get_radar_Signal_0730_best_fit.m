@@ -46,14 +46,23 @@ alpha = 0.96;
 Lib = ModuleConnector.Library;
 Lib.libfunctions
 
-% Sample setting
-Min_slow_index = 150;
-Max_sample_length = 210;
+% Sample settingm
+Max_sample_length = 150;
+Min_slow_index = Max_sample_length;
+analysis_length = Max_sample_length * 5; % Get FFT result every four times
 Vital_Signal = [];
 
 % Index
 slow_index = 0;
 index = 0;
+
+% Assessment Var
+Max_iteration = 200; % Max iteration : 1000s
+Spent_time = [];
+Dist_list = [];
+RR_list = [];
+HR_list = [];
+R_square_list = zeros(Max_iteration, 256);
 
 %% Init Radar
 
@@ -95,9 +104,8 @@ figure(1)
 
 %% Receive Signal from Radar
 while ishandle(1)
-    % Peek message data float
-    numPackets = radar.bufferSize(); 
-    if numPackets > 0
+    numPackets = radar.bufferSize();
+    if numPackets > 0 
         % Increase Index
         index = index + 1;
         slow_index = slow_index + 1;
@@ -208,7 +216,7 @@ while ishandle(1)
             wait(func_result);
         else
             % Detect vital signal in parallel
-            func_result = parfeval(@Detect_Vital_parallel, 5, Sample, FPS);
+            func_result = parfeval(@Detect_Vital_parallel, 6, Sample, FPS);
             slow_index = 0;
         end
     end
@@ -216,25 +224,27 @@ while ishandle(1)
     %% Show Detected Vital Signal
     if exist('func_result', 'var') && strcmp(func_result.State, 'finished') % Calc is finished
         % Get result
-        [~, Selected_Signal, Selected_Index, Freq, Phase, error] = fetchNext(func_result);
+        [~, Selected_Signal, Selected_Index, Freq, Phase, error, info] = fetchNext(func_result);
         % Print result
         axh(2) = subplot(2,1,2);
         fprintf("%.1f s > ", (index - Min_slow_index)/FPS);
         if isempty(error)
             % Phase shift
-            if isempty(Vital_Signal)
-                Shifted_Signal = normalize(Selected_Signal);
-                Prev_phase = Phase;
-                Prev_freq = Freq;
-            else
-                Shifted_Signal = Phase_shift(normalize(Selected_Signal), Prev_freq, Prev_phase, Freq, Phase, FPS);
-                Prev_phase = Phase;
-                Prev_freq = Freq;
-            end
+%             if isempty(Vital_Signal)
+%                 Shifted_Signal = normalize(Selected_Signal);
+%                 Prev_phase = Phase;
+%                 Prev_freq = Freq;
+%             else
+%                 Shifted_Signal = Phase_shift(normalize(Selected_Signal), Prev_freq, Prev_phase, Freq, Phase, FPS);
+%                 Prev_phase = Phase;
+%                 Prev_freq = Freq;
+%             end
             
-            Vital_Signal = [Vital_Signal Shifted_Signal];
+%             Vital_Signal = [Vital_Signal Shifted_Signal];
+            Vital_Signal = [Vital_Signal normalize(Selected_Signal)];
             
             fprintf("%.3f m Detected\n", Selected_Index * binLength + frameStart);
+            Dist_list = [Dist_list Selected_Index * binLength + frameStart];
             
             % Draw graph
             plot(Vital_Signal);
@@ -247,36 +257,89 @@ while ishandle(1)
         else
             fprintf(error);
         end
+        
+        % Assessment var
+        Spent_time = [Spent_time info.Time];
+        R_square_list(length(Spent_time), :) = info.Rsquare;
+        
         clear func_result;
         
-        % Todo : extract vital signal 
+        % Extract vital signal
+        if length(Vital_Signal) >= analysis_length
+            target = Vital_Signal(end - analysis_length + 1 : end);
+            showType = 'fft';
+            switch showType
+                case 'hht'
+                    figure(2)
+                    imf = emd(target, 'Display', 0);
+                    hht(imf, FPS, 'FrequencyResolution', 0.05, 'FrequencyLimits', [0 5] );
+                case 'fft'
+                    % Extract Vital Signal by FFT
+                    [RR, HR, error] = Extract_Vital(target, FPS);
+                    % Print result
+                    if isempty(error)
+                        fprintf("Result > Respiration Rate : %.2f bpm / Heart Rate : ", RR);
+                        fprintf("%.2f bpm ", HR);
+                        fprintf("\n");
+                        
+                        % Save RR, HR
+                        RR_list = [RR_list RR];
+                        HR_list(length(RR_list),:) = HR;
+                    else
+                        fprintf(error);
+                    end
+            end
+        end
     end
     
 end
 
 radar.close();
 
-%% Extract Vital Signal
-if isempty(Vital_Signal)
-    return
-else
-    showType = 'fft';
-    switch showType
-        case 'hht'
-            figure(2)
-            imf = emd(Selected_Signal, 'Display', 0);
-            hht(imf, FPS, 'FrequencyResolution', 0.05, 'FrequencyLimits', [0 5] );
-        case 'fft'
-            % Extract Vital Signal by FFT
-            [RR, HR, error] = Extract_Vital(Vital_Signal, FPS);
-            % Print result
-            if isempty(error)
-                fprintf("Sample Length : %d bins / Spent time : %.2f s /  Respiration Rate : %.2f bpm / Heart Rate : ", length(Vital_Signal), length(Vital_Signal)/FPS, RR);
-                fprintf("%.2f bpm ", HR);
-                fprintf("\n");
-            else
-                fprintf(error);
-            end
-    end
-end
+%% Show result
+figure(3)
+showGraph = 5;
 
+analysis_timeRange = (0 : length(RR_list)-1)*Max_sample_length/FPS + analysis_length/FPS + Min_slow_index/FPS;
+spent_timeRange = (0 : length(Spent_time)-1)*Max_sample_length/FPS + Min_slow_index/FPS;
+dist_timeRange = (0 : length(Dist_list)-1)*Max_sample_length/FPS + Min_slow_index/FPS;
+timeRange = (0 : length(Vital_Signal)-1)/FPS + Min_slow_index/FPS;
+
+hResult(1) = subplot(showGraph,1,1);
+title(hResult(1), "RR in detected vital signal");
+stairs(analysis_timeRange, RR_list)
+xlabel("Slow time(s)")
+ylabel("RR(bpm)")
+ylim(hResult(1), [10 30])
+
+hResult(2) = subplot(showGraph,1,2);
+title(hResult(2), "HR in detected vital signal");
+stairs(analysis_timeRange, HR_list(1 : length(RR_list), 1), 'Color', 'r')
+% hold on
+% stairs(analysis_timeRange, HR_list(1 : length(RR_list), 2), 'Color', 'g')
+% stairs(analysis_timeRange, HR_list(1 : length(RR_list), 3), 'Color', 'b')
+% hold off
+xlabel("Slow time(s)")
+ylabel("HR(bpm)")
+ylim(hResult(2), [50 100])
+
+hResult(3) = subplot(showGraph,1,3);
+title(hResult(3), "Detected vital signal");
+plot(timeRange, Vital_Signal)
+xlabel("Slow time(s)")
+ylabel("Normalized amplitude")
+ylim(hResult(3), [-5 5])
+
+hResult(4) = subplot(showGraph,1,4);
+title(hResult(4), "Detected distance");
+plot(dist_timeRange, Dist_list)
+xlabel("Slow time(s)")
+ylabel("Distance(m)")
+ylim(hResult(4), [0.3 1.0])
+
+hResult(5) = subplot(showGraph,1,5);
+title(hResult(5), "Spent time to detect vital signal");
+stairs(spent_timeRange, Spent_time)
+xlabel("Slow time(s)")
+ylabel("Spent time(s)")
+ylim(hResult(5), [0 20])

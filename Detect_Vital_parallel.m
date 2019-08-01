@@ -1,4 +1,7 @@
-function [Selected_Signal, Selected_Index, error] = Detect_Vital_parallel(Signal, FPS)
+function [Selected_Signal, Selected_Index, Freq, Phase, error, info] = Detect_Vital_parallel(Signal, FPS)
+% Timer start
+tStart = tic;
+
 % Define
 Sample_Index = length(Signal(1,:));
 Sample_Length = length(Signal(:,1));
@@ -91,5 +94,12 @@ if r_value < Rsquare_threshold
     Selected_Signal = [];
     error = 'Cannot detect Vital Signal\n';    
 end
+
+% Timer stop
+tSpend = toc(tStart);
+
+% Return others(Rsquare, Spend time)
+info.Rsquare = Rsquare_batch_filtered;
+info.Time = tSpend;
 
 end

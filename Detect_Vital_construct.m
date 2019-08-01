@@ -1,4 +1,7 @@
-function [Selected_Signal, Selected_Index, error] = Detect_Vital_construct(Signal, FPS)
+function [Selected_Signal, Selected_Index, error, info] = Detect_Vital_construct(Signal, FPS)
+% Timer start
+tStart = tic;
+
 % Define
 Sample_Index = length(Signal(1,:));
 Sample_Length = length(Signal(:,1));
@@ -153,6 +156,14 @@ for zero_index = 1 : length(zero_crossing(1,:))
     prev_Signal = selected_sub_Signal;
 end
 
+% Return signal, index
 Selected_Signal = constructed_vital_signal;
 Selected_Index = mode(constructed_signal_index);
+
+% Timer stop
+tSpend = toc(tStart);
+
+% Return others(Rsquare, Spend time)
+info.Rsquare = Rsquare_batch_filtered;
+info.Time = tSpend;
 end
